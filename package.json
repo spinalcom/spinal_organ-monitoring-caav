@@ -1,0 +1,34 @@
+{
+  "name": "spinal-organ-monitoring-caav",
+  "version": "1.0.0",
+  "description": "organ that watchs any changes on controlpoints command and update the concerning enpoints",
+  "main": "index.js",
+  "scripts": {
+    "start": "npm run build && node dist/index.js",
+    "build": "rm -rf dist/ && tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Salah-Eddine CHERIFI",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.0.1",
+    "moment": "^2.29.3",
+    "node-cron": "^3.0.1",
+    "typescript": "^4.4.4"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.38"
+  },
+  "spinalDependencies": {
+    "spinal-core-connectorjs": "spinal-core-connectorjs",
+    "spinal-core-connectorjs_type": "spinal-core-connectorjs_type",
+    "spinal-env-viewer-graph-service": "Spinal-Graph-Service",
+    "spinal-env-viewer-plugin-documentation": "spinal-env-viewer-plugin-documentation",
+    "spinal-env-viewer-plugin-documentation-service": "spinal-env-viewer-plugin-documentation-service",
+    "spinal-env-viewer-plugin-excel-manager-service": "spinal-env-viewer-plugin-excel-manager-service",
+    "spinal-model-bacnet": "spinal-model-bacnet",
+    "spinal-model-bmsnetwork": "spinal-model-bmsnetwork",
+    "spinal-model-graph": "spinal-model-graph",
+    "spinal-model-timeseries": "spinal-model-timeseries"
+  }
+}
