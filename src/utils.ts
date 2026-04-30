@@ -29,9 +29,10 @@ import * as constants from "./constants"
 import { NetworkService, InputDataEndpoint, InputDataEndpointDataType, InputDataEndpointType } from "spinal-model-bmsnetwork"
 import { SpinalAttribute } from "spinal-models-documentation/declarations";
 import { attributeService, ICategory } from "spinal-env-viewer-plugin-documentation-service";
-import { InfoStore, PositionDataLight, PositionsDataStore, PositionTempData, RoomDataBlind, RoomDataLight,RoomTempData } from "./types";
+import { InfoStore, PositionDataLight, PositionsDataStore, PositionsDataStore2, PositionTempData, RoomDataBlind, RoomDataLight,RoomTempData, tempObject } from "./types";
 import { ProcessBind } from "./processBind";
 import { all } from "axios";
+import { info } from "console";
 export const networkService = new NetworkService()
 
 
@@ -281,7 +282,7 @@ export class Utils {
 
 
     // function to get stores linked to position 
-    public async getStoreForPosition(workpositionId: string): Promise<InfoStore[]> {
+    public async getStoreForPosition(workpositionId: string, posBso : string, posLamelle: string): Promise<InfoStore[]> {
         const result: InfoStore[] = [];
         const allbimObjects = await SpinalGraphService.getChildren(workpositionId, ["hasNetworkTreeBimObject"]);
         const storeResults = await Promise.all(
@@ -303,8 +304,8 @@ export class Utils {
                 if (seenBsoIds.has(bsoID)) continue;
                 seenBsoIds.add(bsoID);
                 const bmsEndpoints = await SpinalGraphService.getChildren(bsoID, ["hasBmsEndpoint"]);
-                const PositionBSO = bmsEndpoints.find(child => child.name.get() === "bPositionBSO");
-                const PositionLamelle = bmsEndpoints.find(child => child.name.get() === "bPositionLamelle");
+                const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
+                const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
                 if (PositionBSO && PositionLamelle) {
                     result.push({ bso: bso[0], posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
                 }
@@ -315,7 +316,7 @@ export class Utils {
     } 
 
 
-    public async getStoreForRoom(roomid: string): Promise<InfoStore[]> {
+    public async getStoreForRoom(roomid: string, posBso: string, posLamelle: string): Promise<InfoStore[]> {
         const result: InfoStore[] = [];
         const allbimObjects = await SpinalGraphService.getChildren(roomid, ["hasBimObject"]);
         const storeResults = await Promise.all(
@@ -337,8 +338,8 @@ export class Utils {
                 if (seenBsoIds.has(bsoID)) continue;
                 seenBsoIds.add(bsoID);
                 const bmsEndpoints = await SpinalGraphService.getChildren(bsoID, ["hasBmsEndpoint"]);
-                const PositionBSO = bmsEndpoints.find(child => child.name.get() === "bPositionBSO");
-                const PositionLamelle = bmsEndpoints.find(child => child.name.get() === "bPositionLamelle");
+                const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
+                const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
                 if (PositionBSO && PositionLamelle) {
                     result.push({ bso: bso[0], posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
                 }
@@ -437,6 +438,39 @@ export class Utils {
         endpointNode.info.directModificationDate.set(Date.now());
     }
 
+    public getStoreWithHighestBsoNumber(storeINFO: InfoStore[]): InfoStore | undefined {
+        let maxNumber = -1;
+        let result: InfoStore | undefined;
+        for (const info of storeINFO) {
+            const match = info.bso.name.get().match(/\[(\d{1,2})\]/);
+            if (match) {
+                const num = parseInt(match[1]);
+                if (num > maxNumber) {
+                    maxNumber = num;
+                    result = info;
+                }
+            }
+        }
+        return result;
+    }
+
+    public getStoreWithLowestBsoNumber(storeINFO: InfoStore[]): InfoStore | undefined {
+        let minNumber = Infinity;
+        let result: InfoStore | undefined;
+        for (const info of storeINFO) {
+            const match = info.bso.name.get().match(/\[(\d{1,2})\]/);
+            if (match) {
+                const num = parseInt(match[1]);
+                if (num < minNumber) {
+                    minNumber = num;
+                    result = info;
+                }
+            }
+        }
+        return result;
+    }
+    
+
     public async BindStoresControlPoint(posList: PositionsDataStore[]) {
 
         for (const item of posList) {
@@ -444,29 +478,92 @@ export class Utils {
 
             // Vérifier si controlPoint et PosINFO sont valides
             if (controlPoint != undefined && storeINFO.length > 0) {
-
-                for (const info of storeINFO){
-
-                    console.log("Binding Endpoint point:", info.posBsoEndpoint.name.get(), "for position", position.name.get());
+                   
+                    const storeWithLowestBsoNumber = this.getStoreWithLowestBsoNumber(storeINFO);
+                    console.log("Binding Endpoint point:", storeWithLowestBsoNumber?.posBsoEndpoint.name.get(), "for position", position.name.get());
 
                     
-                    const EndpCurrentValue  = (await info.posBsoEndpoint.element.load()).currentValue;
+                    if (storeWithLowestBsoNumber !== undefined) {
+                    const EndpCurrentValue  = (await storeWithLowestBsoNumber.posBsoEndpoint.element.load())?.currentValue;
                     const CPElement = await controlPoint.element.load(); 
 
-                    //console.log("DirectModificationDate for", controlPoint.name.get(), ":", CPmodifDate.get(), [CPmodifDate._server_id]);
-                    // Surveiller les modifications pour ce controlPoint
-                    // CPmodifDate.bind(async () => {
                     this.processBind.addBind(EndpCurrentValue, async () => {
-                        console.log(" EndPoint modified:", info.posBsoEndpoint.name.get()," for position", position.name.get());
+                        console.log(" EndPoint modified:", storeWithLowestBsoNumber?.posBsoEndpoint.path.get()," for position", position.name.get());
                         const ValueToPush = EndpCurrentValue.get();
                         CPElement.currentValue.set(ValueToPush);
-                        console.log(" control point updated with value", ValueToPush)
+                        console.log(" control point", controlPoint.name.get(), "updated with value", ValueToPush)
 
                     
                     });
-                    // }, false);
+                }
+                
 
-                } 
+            }
+        }
+
+    }
+
+    public async BindStoresControlPoint2(posList: PositionsDataStore2[]) {
+
+        for (const item of posList) {
+            const { position, CP: controlPoint , CP_Rotation: controlRotationPoint,CP2 : controlPoint2,CP_Rotation2: controlRotationPoint2, storeINFO, doubleControl } = item;
+
+            // Vérifier si controlPoint et PosINFO sont valides
+            if (controlPoint2 != undefined && storeINFO.length > 0) {
+
+
+                    const storeWithHighestBsoNumber = this.getStoreWithHighestBsoNumber(storeINFO);
+
+                    console.log("Binding Endpoint point:", storeWithHighestBsoNumber?.posBsoEndpoint.name.get(), "for position", position.name.get(),"double control point", controlPoint2.name.get());
+                     if (storeWithHighestBsoNumber !== undefined) {
+                    const EndpCurrentValue  = (await storeWithHighestBsoNumber.posBsoEndpoint.element.load())?.currentValue;
+                    const CPElement = await controlPoint2.element.load(); 
+
+                    this.processBind.addBind(EndpCurrentValue, async () => {
+                        console.log(" EndPoint modified:", storeWithHighestBsoNumber?.posBsoEndpoint.path.get()," for position", position.name.get());
+                        const ValueToPush = EndpCurrentValue.get();
+                        CPElement.currentValue.set(ValueToPush);
+                        console.log(" control point", controlPoint2.name.get(), "updated with value", ValueToPush)
+
+                    
+                    });
+
+                    }
+
+            }
+        }
+
+    }
+
+
+    public async BindStoresRotationControlPoint2(posList: PositionsDataStore2[]) {
+
+        for (const item of posList) {
+            const { position, CP: controlPoint , CP_Rotation: controlRotationPoint,CP2 : controlPoint2,CP_Rotation2: controlRotationPoint2, storeINFO, doubleControl } = item;
+
+            if (controlRotationPoint2 != undefined && storeINFO.length > 0) {
+
+
+                    const storeWithHighestBsoNumber = this.getStoreWithHighestBsoNumber(storeINFO);
+
+                    console.log("Binding Endpoint point:", storeWithHighestBsoNumber?.posLamelleEndpoint.name.get(), "for position", position.name.get(),"double blind control point", controlRotationPoint2.name.get());
+
+                    
+                    if (storeWithHighestBsoNumber !== undefined) {
+                    const EndpCurrentValue  = (await storeWithHighestBsoNumber.posLamelleEndpoint.element.load())?.currentValue;
+                    const CPElement = await controlRotationPoint2.element.load(); 
+
+                
+                    this.processBind.addBind(EndpCurrentValue, async () => {
+                        console.log(" EndPoint modified:", storeWithHighestBsoNumber?.posLamelleEndpoint.path.get()," for position", position.name.get());
+                        const ValueToPush = EndpCurrentValue.get();
+                        CPElement.currentValue.set(ValueToPush);
+                        console.log(" control point" , controlRotationPoint2.name.get(),  "updated with value", ValueToPush,)
+
+                    
+                    });
+
+                    }
 
             }
         }
@@ -477,7 +574,6 @@ export class Utils {
         for (const item of RoomList) {
             const { room, CP: controlPoint, CP_Rotation: controlRotationPoint, storeINFO } = item;
 
-            // Vérifier si controlPoint et PosINFO sont valides
             if (controlPoint != undefined && storeINFO.length > 0) {
 
                 for (const info of storeINFO) {
@@ -488,18 +584,15 @@ export class Utils {
                     const EndpCurrentValue = (await info.posBsoEndpoint.element.load()).currentValue;
                     const CPElement = await controlPoint.element.load();
 
-                    //console.log("DirectModificationDate for", controlPoint.name.get(), ":", CPmodifDate.get(), [CPmodifDate._server_id]);
-                    // Surveiller les modifications pour ce controlPoint
-                    // CPmodifDate.bind(async () => {
+                  
                     this.processBind.addBind(EndpCurrentValue, async () => {
-                        console.log(" EndPoint modified:", info.posBsoEndpoint.name.get(), " for room", room.name.get());
+                        console.log(" EndPoint modified:", info.posBsoEndpoint.path.get(), " for room", room.name.get());
                         const ValueToPush = EndpCurrentValue.get();
                         CPElement.currentValue.set(ValueToPush);
-                        console.log(" control point updated with value", ValueToPush)
+                        console.log(" control point", controlPoint.name.get(), "updated with value", ValueToPush)
 
 
                     });
-                    // }, false);
 
                 }
 
@@ -511,33 +604,30 @@ export class Utils {
     public async BindStoresRotationControlPoint(posList: PositionsDataStore[]) {
 
         for (const item of posList) {
-            const { position, CP: controlPoint, CP_Rotation: controlRotationPoint, storeINFO } = item;
+            const { position, CP: controlPoint, CP_Rotation: controlRotationPoint, storeINFO, doubleControl } = item;
 
-            // Vérifier si controlPoint et PosINFO sont valides
             if (controlRotationPoint != undefined && storeINFO.length > 0) {
 
-                for (const info of storeINFO){
+              
+                    const storeWithLowestBsoNumber = this.getStoreWithLowestBsoNumber(storeINFO);
+                    console.log("Binding Endpoint point:", storeWithLowestBsoNumber?.posLamelleEndpoint.name.get(), "for position", position.name.get());
+                  
+                    if (storeWithLowestBsoNumber !== undefined) {
+                        const EndpCurrentValue  = (await storeWithLowestBsoNumber.posLamelleEndpoint.element.load())?.currentValue;
+                        const CPElement = await controlRotationPoint.element.load(); 
 
-                    console.log("Binding Endpoint point:", info.posLamelleEndpoint.name.get(), "for position", position.name.get());
-
-                    
-                    const EndpCurrentValue  = (await info.posLamelleEndpoint.element.load()).currentValue;
-                    const CPElement = await controlRotationPoint.element.load(); 
-
-                    //console.log("DirectModificationDate for", controlPoint.name.get(), ":", CPmodifDate.get(), [CPmodifDate._server_id]);
-                    // Surveiller les modifications pour ce controlPoint
-                    // CPmodifDate.bind(async () => {
+                   
                     this.processBind.addBind(EndpCurrentValue, async () => {
-                        console.log(" EndPoint modified:", info.posLamelleEndpoint.name.get()," for position", position.name.get());
+                        console.log(" EndPoint modified:", storeWithLowestBsoNumber.posLamelleEndpoint.path.get()," for position", position.name.get());
                         const ValueToPush = EndpCurrentValue.get();
                         CPElement.currentValue.set(ValueToPush);
-                        console.log(" control point updated with value", ValueToPush)
+                        console.log(" control point", controlRotationPoint.name.get(), "updated with value", ValueToPush)
 
                     
                     });
-                    // }, false);
+                }
 
-                } 
+                
 
             }
         }
@@ -562,10 +652,10 @@ export class Utils {
 
                
                     this.processBind.addBind(EndpCurrentValue, async () => {
-                        console.log(" EndPoint modified:", info.posLamelleEndpoint.name.get()," for room", room.name.get());
+                        console.log(" EndPoint modified:", info.posLamelleEndpoint.path.get()," for room", room.name.get());
                         const ValueToPush = EndpCurrentValue.get();
                         CPElement.currentValue.set(ValueToPush);
-                        console.log(" control point updated with value", ValueToPush)
+                        console.log(" control point", controlRotationPoint.name.get(), "updated with value", ValueToPush)
 
                     
                     });
@@ -582,7 +672,7 @@ export class Utils {
 
    
 
-    public async getTempEndpoint(positionID: string): Promise<SpinalNodeRef | undefined> {
+    public async getTempEndpoint(positionID: string): Promise<tempObject|undefined> {
         try {
             
              const endpointList = await SpinalGraphService.getChildren(positionID, ["hasBmsEndpoint"]);
@@ -598,12 +688,13 @@ export class Utils {
             }
 
             const consEndpoints = await SpinalGraphService.getChildren(consignes.id.get(), ["hasBmsEndpoint"]);
-            if (endpointList.length === 0) {
+            if (consEndpoints.length === 0) {
                 //console.log("No BMS endpoints found in consigne for position ID:", positionID);
                 return undefined;
             }
             const endpoint = consEndpoints.find(child => child.name.get() === constants.TempEndpointName);
-            return (endpoint);
+            const confortEndpoint = consEndpoints.find(child => child.name.get() === constants.TempConfortEndpointName);
+            return { DecTempEndpoint: endpoint, ConfortTempEndpoint: confortEndpoint };
 
         } catch (error) {
             const realposition = SpinalGraphService.getRealNode(positionID);
@@ -613,7 +704,7 @@ export class Utils {
 
     }
 
-    public async getRoomTempEndpoint(roomID: string): Promise<SpinalNodeRef | undefined> {
+    public async getRoomTempEndpoint(roomID: string): Promise<tempObject | undefined> {
         try {
             
 
@@ -646,7 +737,8 @@ export class Utils {
                 return undefined;
             }
             const endpoint = endpointList.find(child => child.name.get() === constants.TempEndpointName);
-            return (endpoint);
+            const confortEndpoint = endpointList.find(child => child.name.get() === constants.TempConfortEndpointName);
+            return { DecTempEndpoint: endpoint, ConfortTempEndpoint: confortEndpoint };
 
         } catch (error) {
             const realroom = SpinalGraphService.getRealNode(roomID);
@@ -658,17 +750,42 @@ export class Utils {
     public async BindTempControlPoint(TempDataList: PositionTempData[]) {
 
         for (const item of TempDataList) {
-            const { position, CP_temp: controlPoint_temp, TempEndpoint } = item;
+            const { position, CP_temp: controlPoint_temp, ConfortTempCP: controlPoint_confort, TempEndpoints: tempEndpoints } = item;
             //console.log(TempEndpoint, "TempEndpoint for position", position.name.get());
 
 
-            if (controlPoint_temp != undefined && TempEndpoint != undefined) {
-                console.log("Binding Temperature Endpoint:", TempEndpoint.name.get(), "for position", position.name.get());
+            if (controlPoint_temp != undefined && tempEndpoints?.DecTempEndpoint != undefined) {
+                const endpoint = tempEndpoints.DecTempEndpoint;
+                console.log("Binding Temperature Endpoint:", endpoint.name.get(), "for position", position.name.get());
 
-                const EndPCurrentValue = (await TempEndpoint.element.load()).currentValue;
+                const EndPCurrentValue = (await endpoint.element.load()).currentValue;
                 const cp = await controlPoint_temp.element.load();
                 this.processBind.addBind(EndPCurrentValue, async () => {
-                    console.log("EndPoint modified:", TempEndpoint.name.get() ,"for position", position.name.get());
+                    console.log("EndPoint modified:", endpoint.name.get() ,"for position", position.name.get());
+                    const ValueToPush = EndPCurrentValue.get();
+                    cp.currentValue.set(ValueToPush);
+                    console.log("Temperature controPoint updated for position", position.name.get());
+                });
+                // }, false);
+            }
+        }
+    }
+
+    public async BindConfortTempControlPoint(TempDataList: PositionTempData[]) {
+
+        for (const item of TempDataList) {
+            const { position, CP_temp: controlPoint_temp, ConfortTempCP: controlPoint_confort, TempEndpoints: tempEndpoints } = item;
+            //console.log(TempEndpoint, "TempEndpoint for position", position.name.get());
+
+
+            if (controlPoint_confort != undefined && tempEndpoints?.ConfortTempEndpoint != undefined) {
+                const endpoint = tempEndpoints.ConfortTempEndpoint;
+                console.log("Binding Temperature Endpoint:", endpoint.name.get(), "for position", position.name.get());
+
+                const EndPCurrentValue = (await endpoint.element.load()).currentValue;
+                const cp = await controlPoint_confort.element.load();
+                this.processBind.addBind(EndPCurrentValue, async () => {
+                    console.log("EndPoint modified:", endpoint.name.get() ,"for position", position.name.get());
                     const ValueToPush = EndPCurrentValue.get();
                     cp.currentValue.set(ValueToPush);
                     console.log("Temperature controPoint updated for position", position.name.get());
@@ -681,18 +798,45 @@ export class Utils {
     public async BindRoomTempControlPoint(TempDataList: RoomTempData[]) {
 
         for (const item of TempDataList) {
-            const { room, CP_temp: controlPoint_temp, TempEndpoint } = item;
+            const { room, CP_temp: controlPoint_temp, ConfortTempCP: controlPoint_confort, TempEndpoints: tempEndpoints } = item;
             //console.log(TempEndpoint, "TempEndpoint for room", room.name.get());
 
 
-            if (controlPoint_temp != undefined && TempEndpoint != undefined) {
+            if (controlPoint_temp != undefined && tempEndpoints?.DecTempEndpoint != undefined) {
+                const endpoint = tempEndpoints.DecTempEndpoint;
                 console.log("Binding Temperature endpoint point:", controlPoint_temp.name.get(), "for room", room.name.get());
 
-                const EndPCurrentValue = (await TempEndpoint.element.load()).currentValue;
+                const EndPCurrentValue = (await endpoint.element.load()).currentValue;
                 const cp = await controlPoint_temp.element.load();
 
                 this.processBind.addBind(EndPCurrentValue, async () => {
-                    console.log("EndPoint modified:", TempEndpoint.name.get() ,"for room", room.name.get());
+                    console.log("EndPoint modified:", endpoint.name.get() ,"for room", room.name.get());
+                    const ValueToPush = EndPCurrentValue.get();
+                    cp.currentValue.set(ValueToPush);
+                    console.log("Temperature controPoint updated for room", room.name.get());
+
+                });
+                // }, false);
+            }
+        }
+    }
+
+    public async BindRoomConfortTempControlPoint(TempDataList: RoomTempData[]) {
+
+        for (const item of TempDataList) {
+            const { room, CP_temp: controlPoint_temp, ConfortTempCP: controlPoint_confort, TempEndpoints: tempEndpoints } = item;
+            //console.log(TempEndpoint, "TempEndpoint for room", room.name.get());
+
+
+            if (controlPoint_confort != undefined && tempEndpoints?.ConfortTempEndpoint != undefined) {
+                const endpoint = tempEndpoints.ConfortTempEndpoint;
+                console.log("Binding Temperature endpoint point:", controlPoint_confort.name.get(), "for room", room.name.get());
+
+                const EndPCurrentValue = (await endpoint.element.load()).currentValue;
+                const cp = await controlPoint_confort.element.load();
+
+                this.processBind.addBind(EndPCurrentValue, async () => {
+                    console.log("EndPoint modified:", endpoint.name.get() ,"for room", room.name.get());
                     const ValueToPush = EndPCurrentValue.get();
                     cp.currentValue.set(ValueToPush);
                     console.log("Temperature controPoint updated for room", room.name.get());

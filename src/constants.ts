@@ -26,13 +26,19 @@
 export const LightControlPoint = "ETAT_LIGHT"
 export const StoreControlPoint = "ETAT_BLIND"
 export const StroreRotationControlPoint = "ETAT_BLIND_ROTATION"
-export const HeatControlPoint="CONSIGNE_TEMPERATURE"
+export const TempControlPoint="CONSIGNE_TEMPERATURE"
+export const TempConfortControlPoint="CONSIGNE_TEMPERATURE_CONFORT"
+export const StoreControlPoint2 = "ETAT_BLIND_2"
+export const StoreRotationControlPoint2 = "ETAT_BLIND_ROTATION_2"
+
 
 
 export const groupdaliName = "DALI_001_GRP_"
 export const groupBSOName = "BSO_GRPB_"
 
-export const TempEndpointName = "rConsComfort"
+export const TempEndpointName = "rConsDecalage"
+export const TempConfortEndpointName = "rConsComfort"
+
 export const LightEndpointName = "rMES"
 export const BlindEndpointName = "bPositionBSO" // pour les tests ( à changer)
 export const BlindRotEndpointName="bPositionLamelle"// pour les tests ( à changer)

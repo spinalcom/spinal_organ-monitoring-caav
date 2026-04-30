@@ -23,6 +23,17 @@ export type PositionsDataStore={
     CP: SpinalNodeRef | undefined;
     CP_Rotation: SpinalNodeRef | undefined;
     storeINFO: InfoStore[];
+    doubleControl : boolean;
+}
+export type PositionsDataStore2={
+    position: SpinalNodeRef;
+    CP: SpinalNodeRef | undefined;
+    CP_Rotation: SpinalNodeRef | undefined;
+    CP2: SpinalNodeRef | undefined;
+    CP_Rotation2: SpinalNodeRef | undefined;
+    storeINFO: InfoStore[];
+    doubleControl : boolean;
+
 }
 export type InfoStore={
     bso: SpinalNodeRef;
@@ -32,12 +43,18 @@ export type InfoStore={
 export type PositionTempData={
     position: SpinalNodeRef;
     CP_temp : SpinalNodeRef | undefined;
-    TempEndpoint: SpinalNodeRef;
+    ConfortTempCP: SpinalNodeRef | undefined;
+    TempEndpoints: tempObject | undefined;
+}
+export type tempObject={    
+    DecTempEndpoint: SpinalNodeRef | undefined;
+    ConfortTempEndpoint: SpinalNodeRef | undefined;
 }
 export type RoomTempData={
     room: SpinalNodeRef;
     CP_temp : SpinalNodeRef | undefined;
-    TempEndpoint: SpinalNodeRef;
+    ConfortTempCP: SpinalNodeRef | undefined;
+    TempEndpoints: tempObject | undefined;
 }
 
 export type RoomData = {

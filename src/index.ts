@@ -28,7 +28,7 @@ import { spinalCore, FileSystem } from "spinal-core-connectorjs_type";
 import * as config from "../config";
 import { Utils } from "./utils"
 import * as constants from "./constants"
-import { PositionDataLight, PositionsDataStore, PositionTempData, RoomData, RoomDataLight, RoomDataBlind, RoomTempData } from "./types";
+import { PositionDataLight, PositionsDataStore,PositionsDataStore2, PositionTempData, RoomData, RoomDataLight, RoomDataBlind, RoomTempData } from "./types";
 const utils = new Utils();
 
 
@@ -84,11 +84,12 @@ class SpinalMain {
     public async positionControl() {
 
         const Positions = await utils.getPositions(process.env.context_position, process.env.category_position, process.env.groupe_position);
+        const Position_double_control = await utils.getPositions(process.env.context_position, process.env.category_position, process.env.groupe_position_double_control);
 
         console.log("Positions found : ", Positions.length);
 
         this.LightControl(Positions);
-        this.StoresControl(Positions);
+        this.StoresControl(Positions,Position_double_control);
         this.TempControl(Positions);
 
     }
@@ -115,13 +116,14 @@ class SpinalMain {
       public async getRoomDataStore(room: SpinalNodeRef): Promise<RoomDataBlind> {
         const CP = await utils.getControlPoint(room.id.get(), constants.StoreControlPoint);
         const CP_Rotation = await utils.getControlPoint(room.id.get(), constants.StroreRotationControlPoint);
-        const storeINFO = await utils.getStoreForRoom(room.id.get());
+        const storeINFO = await utils.getStoreForRoom(room.id.get(),constants.BlindEndpointName, constants.BlindRotEndpointName);
         return { room, CP, CP_Rotation, storeINFO };
     }
      public async getRoomTempData(room: SpinalNodeRef): Promise<RoomTempData> {
-        const CP_temp = await utils.getControlPoint(room.id.get(), constants.HeatControlPoint);
-        const TempEndpoint = await utils.getRoomTempEndpoint(room.id.get())
-        return { room, CP_temp, TempEndpoint }
+        const CP_temp = await utils.getControlPoint(room.id.get(), constants.TempControlPoint);
+        const ConfortTempCP = await utils.getControlPoint(room.id.get(), constants.TempConfortControlPoint);
+        const TempEndpoints = await utils.getRoomTempEndpoint(room.id.get())
+        return { room, CP_temp, ConfortTempCP, TempEndpoints : { DecTempEndpoint: TempEndpoints?.DecTempEndpoint, ConfortTempEndpoint: TempEndpoints?.ConfortTempEndpoint } };
     }
 
     public async RoomLightControl(rooms: SpinalNodeRef[]) {
@@ -162,6 +164,7 @@ class SpinalMain {
         });
         const TempDataList = await Promise.all(promeses3);
         await utils.BindRoomTempControlPoint(TempDataList);
+        await utils.BindRoomConfortTempControlPoint(TempDataList);
         console.log("done binding temp control for rooms");
 
 
@@ -177,14 +180,25 @@ class SpinalMain {
     public async getPositionDataStore(position: SpinalNodeRef): Promise<PositionsDataStore> {
         const CP = await utils.getControlPoint(position.id.get(), constants.StoreControlPoint);
         const CP_Rotation = await utils.getControlPoint(position.id.get(), constants.StroreRotationControlPoint);
-        const storeINFO = await utils.getStoreForPosition(position.id.get());
-        return { position, CP, CP_Rotation, storeINFO };
+        const storeINFO = await utils.getStoreForPosition(position.id.get(), constants.BlindEndpointName, constants.BlindRotEndpointName);
+        return { position, CP, CP_Rotation, storeINFO, doubleControl : false };
+    }
+    public async getPositionDataStoreDouble(position: SpinalNodeRef): Promise<PositionsDataStore2> {
+
+        const storeINFO = await utils.getStoreForPosition(position.id.get(), constants.BlindEndpointName, constants.BlindRotEndpointName);
+        const CP = await utils.getControlPoint(position.id.get(), constants.StoreControlPoint);
+        const CP_Rotation = await utils.getControlPoint(position.id.get(), constants.StroreRotationControlPoint);
+        const CP2 = await utils.getControlPoint(position.id.get(), constants.StoreControlPoint2);
+        const CP_Rotation2 = await utils.getControlPoint(position.id.get(), constants.StoreRotationControlPoint2);
+   
+        return { position, CP, CP_Rotation, CP2, CP_Rotation2, storeINFO, doubleControl : true };
     }
   
     public async getPositionTempData(position: SpinalNodeRef): Promise<PositionTempData> {
-        const CP_temp = await utils.getControlPoint(position.id.get(), constants.HeatControlPoint);
-        const TempEndpoint = await utils.getTempEndpoint(position.id.get())
-        return { position, CP_temp, TempEndpoint }
+        const CP_temp = await utils.getControlPoint(position.id.get(), constants.TempControlPoint);
+        const ConfortTempCP = await utils.getControlPoint(position.id.get(), constants.TempConfortControlPoint);
+        const TempEndpoints = await utils.getTempEndpoint(position.id.get())
+        return { position, CP_temp, ConfortTempCP, TempEndpoints: { DecTempEndpoint: TempEndpoints?.DecTempEndpoint, ConfortTempEndpoint: TempEndpoints?.ConfortTempEndpoint } }
     }
     public async LightControl(Positions: SpinalNodeRef[]) {
 
@@ -201,19 +215,31 @@ class SpinalMain {
 
     }
 
-    public async StoresControl(Positions: SpinalNodeRef[]) {
+    public async StoresControl(Positions: SpinalNodeRef[], Positions_double_control: SpinalNodeRef[]) {
 
 
-        const promeses2 = Positions.map(async (pos: SpinalNodeRef) => {
+        const promeses1 = Positions.map(async (pos: SpinalNodeRef) => {
             const PosStoreData = this.getPositionDataStore(pos);
             return PosStoreData;
         });
 
-        const storeList = await Promise.all(promeses2);
+        const storeList = await Promise.all(promeses1);
         await utils.BindStoresControlPoint(storeList);
         await utils.BindStoresRotationControlPoint(storeList);
 
-        console.log("done binding store control");
+        const promeses2 = Positions_double_control.map(async (pos: SpinalNodeRef) => {
+            const PosStoreDataDouble = this.getPositionDataStoreDouble(pos);
+            return PosStoreDataDouble;
+        });
+
+        const doubleControlStoreList = await Promise.all(promeses2);
+
+        await utils.BindStoresControlPoint(doubleControlStoreList);
+        await utils.BindStoresRotationControlPoint(doubleControlStoreList);
+        await utils.BindStoresControlPoint2(doubleControlStoreList);
+        await utils.BindStoresRotationControlPoint2(doubleControlStoreList);
+
+        console.log("done binding Blind control");
 
     }
     public async TempControl(Positions: SpinalNodeRef[]) {
@@ -225,6 +251,7 @@ class SpinalMain {
         });
         const TempDataList = await Promise.all(promeses3);
         await utils.BindTempControlPoint(TempDataList);
+        await utils.BindConfortTempControlPoint(TempDataList);
         console.log("done binding temp control");
 
 
