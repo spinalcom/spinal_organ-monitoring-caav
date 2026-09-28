@@ -299,17 +299,26 @@ export class Utils {
         const seenBsoIds = new Set<string>();
         for (const store of stores) {
             const bso = await SpinalGraphService.getChildren(store.id.get(), ["hasBmsEndpoint"]);
-            if (bso.length !== 0) {
-                const bsoID = bso[0].id.get();
-                if (seenBsoIds.has(bsoID)) continue;
-                seenBsoIds.add(bsoID);
-                const bmsEndpoints = await SpinalGraphService.getChildren(bsoID, ["hasBmsEndpoint"]);
-                const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
-                const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
-                if (PositionBSO && PositionLamelle) {
-                    result.push({ bso: bso[0], posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
-                }
+            if (bso.length ===0) continue;
+            // const bsoID = bso[0].id.get();
+
+            // Avant on prenait le premier trouvé car il y'en avait qu'un dont le nom commence par BSO_GRPB_  
+            // Maintenant on prend celui qui commence par SBC car il y'en a 2 et c'est le seul qui commence par SBC
+            const correctEndpoint = bso.find(child => child.name.get().startsWith("SBC"))
+            if (!correctEndpoint) {
+                console.log("No SBC endpoint found for store:", store.name.get());
+                continue;
             }
+            const bsoID = correctEndpoint.id.get();
+            if (seenBsoIds.has(bsoID)) continue;
+            seenBsoIds.add(bsoID);
+            const bmsEndpoints = await SpinalGraphService.getChildren(bsoID, ["hasBmsEndpoint"]);
+            const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
+            const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
+            if (PositionBSO && PositionLamelle) {
+                result.push({ bso: correctEndpoint, posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
+            }
+            
         }
 
         return result;
@@ -333,17 +342,26 @@ export class Utils {
         const seenBsoIds = new Set<string>();
         for (const store of stores) {
             const bso = await SpinalGraphService.getChildren(store.id.get(), ["hasBmsEndpoint"]);
-            if (bso.length !== 0) {
-                const bsoID = bso[0].id.get();
-                if (seenBsoIds.has(bsoID)) continue;
-                seenBsoIds.add(bsoID);
-                const bmsEndpoints = await SpinalGraphService.getChildren(bsoID, ["hasBmsEndpoint"]);
-                const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
-                const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
-                if (PositionBSO && PositionLamelle) {
-                    result.push({ bso: bso[0], posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
-                }
+            if (bso.length ===0) continue;
+            // const bsoID = bso[0].id.get();
+
+            // Avant on prenait le premier trouvé car il y'en avait qu'un dont le nom commence par BSO_GRPB_  
+            // Maintenant on prend celui qui commence par SBC car il y'en a 2 et c'est le seul qui commence par SBC
+            const correctEndpoint = bso.find(child => child.name.get().startsWith("SBC"))
+            if (!correctEndpoint) {
+                console.log("No SBC endpoint found for store:", store.name.get());
+                continue;
             }
+            const bsoID = correctEndpoint.id.get();
+            if (seenBsoIds.has(bsoID)) continue;
+            seenBsoIds.add(bsoID);
+            const bmsEndpoints = await SpinalGraphService.getChildren(bsoID, ["hasBmsEndpoint"]);
+            const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
+            const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
+            if (PositionBSO && PositionLamelle) {
+                result.push({ bso: correctEndpoint, posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
+            }
+        
         }
 
         return result;

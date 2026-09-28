@@ -88,6 +88,9 @@ class SpinalMain {
 
         console.log("Positions found : ", Positions.length);
 
+        this.LightControl(Position_double_control);
+        this.TempControl(Position_double_control);
+
         this.LightControl(Positions);
         this.StoresControl(Positions,Position_double_control);
         this.TempControl(Positions);

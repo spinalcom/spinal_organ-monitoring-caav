@@ -8,7 +8,7 @@ export class ProcessBind extends Process {
     }
 
     addBind(model, callback) {
-        model.bind(this, false);
+        model.bind(this, true);
         this.mapCB.push({ model, callback });
 
     }
@@ -34,7 +34,7 @@ export class ProcessBind extends Process {
                 callback();
             }
         }
-        
+
     }
 
 
