@@ -37,6 +37,7 @@ export type PositionsDataStore2={
 }
 export type InfoStore={
     bso: SpinalNodeRef;
+    grpb: SpinalNodeRef | undefined;
     posBsoEndpoint: SpinalNodeRef;
     posLamelleEndpoint: SpinalNodeRef;
 }

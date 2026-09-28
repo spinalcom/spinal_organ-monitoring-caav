@@ -305,6 +305,8 @@ export class Utils {
             // Avant on prenait le premier trouvé car il y'en avait qu'un dont le nom commence par BSO_GRPB_  
             // Maintenant on prend celui qui commence par SBC car il y'en a 2 et c'est le seul qui commence par SBC
             const correctEndpoint = bso.find(child => child.name.get().startsWith("SBC"))
+            // L'autre endpoint (BSO_GRPB_[n]) donne le numéro de groupe du store
+            const grpbEndpoint = bso.find(child => child.name.get().startsWith(constants.groupBSOName))
             if (!correctEndpoint) {
                 console.log("No SBC endpoint found for store:", store.name.get());
                 continue;
@@ -316,7 +318,7 @@ export class Utils {
             const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
             const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
             if (PositionBSO && PositionLamelle) {
-                result.push({ bso: correctEndpoint, posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
+                result.push({ bso: correctEndpoint, grpb: grpbEndpoint, posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
             }
             
         }
@@ -348,6 +350,8 @@ export class Utils {
             // Avant on prenait le premier trouvé car il y'en avait qu'un dont le nom commence par BSO_GRPB_  
             // Maintenant on prend celui qui commence par SBC car il y'en a 2 et c'est le seul qui commence par SBC
             const correctEndpoint = bso.find(child => child.name.get().startsWith("SBC"))
+            // L'autre endpoint (BSO_GRPB_[n]) donne le numéro de groupe du store
+            const grpbEndpoint = bso.find(child => child.name.get().startsWith(constants.groupBSOName))
             if (!correctEndpoint) {
                 console.log("No SBC endpoint found for store:", store.name.get());
                 continue;
@@ -359,7 +363,7 @@ export class Utils {
             const PositionBSO = bmsEndpoints.find(child => child.name.get() === posBso);
             const PositionLamelle = bmsEndpoints.find(child => child.name.get() === posLamelle);
             if (PositionBSO && PositionLamelle) {
-                result.push({ bso: correctEndpoint, posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
+                result.push({ bso: correctEndpoint, grpb: grpbEndpoint, posBsoEndpoint: PositionBSO, posLamelleEndpoint: PositionLamelle });
             }
         
         }
@@ -456,33 +460,35 @@ export class Utils {
         endpointNode.info.directModificationDate.set(Date.now());
     }
 
-    public getStoreWithHighestBsoNumber(storeINFO: InfoStore[]): InfoStore | undefined {
-        let maxNumber = -1;
-        let result: InfoStore | undefined;
-        for (const info of storeINFO) {
-            const match = info.bso.name.get().match(/\[(\d{1,2})\]/);
-            if (match) {
-                const num = parseInt(match[1]);
-                if (num > maxNumber) {
-                    maxNumber = num;
-                    result = info;
-                }
-            }
-        }
-        return result;
+    // Numéro entre [] dans le nom de l'endpoint, ex : BSO_GRPB_[5] -> 5, SBC_003_BSO_[3] -> 3
+    public getBracketNumber(endpoint: SpinalNodeRef | undefined): number | undefined {
+        const match = endpoint?.name.get().match(/\[(\d+)\]/);
+        return match ? parseInt(match[1]) : undefined;
     }
 
-    public getStoreWithLowestBsoNumber(storeINFO: InfoStore[]): InfoStore | undefined {
-        let minNumber = Infinity;
+    /**
+     * Returns the lead store of a store group.
+     * The group is the one with the lowest (first group) or highest (second group) BSO_GRPB number,
+     * the lead store is the store of that group with the lowest SBC number.
+     * @param  {InfoStore[]} storeINFO
+     * @param  {"lowest" | "highest"} group
+     * @returns InfoStore | undefined
+     */
+    public getLeadStore(storeINFO: InfoStore[], group: "lowest" | "highest"): InfoStore | undefined {
+        const groupNumbers = storeINFO
+            .map(info => this.getBracketNumber(info.grpb))
+            .filter((num): num is number => num !== undefined);
+        if (groupNumbers.length === 0) return undefined;
+        const groupNumber = group === "lowest" ? Math.min(...groupNumbers) : Math.max(...groupNumbers);
+
+        let minSbcNumber = Infinity;
         let result: InfoStore | undefined;
         for (const info of storeINFO) {
-            const match = info.bso.name.get().match(/\[(\d{1,2})\]/);
-            if (match) {
-                const num = parseInt(match[1]);
-                if (num < minNumber) {
-                    minNumber = num;
-                    result = info;
-                }
+            if (this.getBracketNumber(info.grpb) !== groupNumber) continue;
+            const sbcNumber = this.getBracketNumber(info.bso);
+            if (sbcNumber !== undefined && sbcNumber < minSbcNumber) {
+                minSbcNumber = sbcNumber;
+                result = info;
             }
         }
         return result;
@@ -497,7 +503,7 @@ export class Utils {
             // Vérifier si controlPoint et PosINFO sont valides
             if (controlPoint != undefined && storeINFO.length > 0) {
                    
-                    const storeWithLowestBsoNumber = this.getStoreWithLowestBsoNumber(storeINFO);
+                    const storeWithLowestBsoNumber = this.getLeadStore(storeINFO, "lowest");
                     console.log("Binding Endpoint point:", storeWithLowestBsoNumber?.posBsoEndpoint.name.get(), "for position", position.name.get());
 
                     
@@ -530,7 +536,7 @@ export class Utils {
             if (controlPoint2 != undefined && storeINFO.length > 0) {
 
 
-                    const storeWithHighestBsoNumber = this.getStoreWithHighestBsoNumber(storeINFO);
+                    const storeWithHighestBsoNumber = this.getLeadStore(storeINFO, "highest");
 
                     console.log("Binding Endpoint point:", storeWithHighestBsoNumber?.posBsoEndpoint.name.get(), "for position", position.name.get(),"double control point", controlPoint2.name.get());
                      if (storeWithHighestBsoNumber !== undefined) {
@@ -562,7 +568,7 @@ export class Utils {
             if (controlRotationPoint2 != undefined && storeINFO.length > 0) {
 
 
-                    const storeWithHighestBsoNumber = this.getStoreWithHighestBsoNumber(storeINFO);
+                    const storeWithHighestBsoNumber = this.getLeadStore(storeINFO, "highest");
 
                     console.log("Binding Endpoint point:", storeWithHighestBsoNumber?.posLamelleEndpoint.name.get(), "for position", position.name.get(),"double blind control point", controlRotationPoint2.name.get());
 
@@ -627,7 +633,7 @@ export class Utils {
             if (controlRotationPoint != undefined && storeINFO.length > 0) {
 
               
-                    const storeWithLowestBsoNumber = this.getStoreWithLowestBsoNumber(storeINFO);
+                    const storeWithLowestBsoNumber = this.getLeadStore(storeINFO, "lowest");
                     console.log("Binding Endpoint point:", storeWithLowestBsoNumber?.posLamelleEndpoint.name.get(), "for position", position.name.get());
                   
                     if (storeWithLowestBsoNumber !== undefined) {
